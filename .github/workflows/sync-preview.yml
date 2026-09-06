@@ -1,0 +1,45 @@
+name: Sync homepage v1 preview
+
+on:
+  push:
+    paths:
+      - ".github/workflows/sync-preview.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-preview
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mirror Cloudflare preview into this user site
+        run: |
+          set -euo pipefail
+          rm -rf _next 404 _not-found
+          rm -f index.html index.txt favicon.ico 404.html
+          mkdir -p /tmp/typedb-preview
+          wget --recursive --level=5 --no-parent --no-host-directories \
+            --page-requisites --execute robots=off \
+            --directory-prefix=/tmp/typedb-preview \
+            https://typedb-homepage-v1.pages.dev/
+          rsync -a --delete --exclude .git --exclude .github --exclude README.md \
+            /tmp/typedb-preview/typedb-homepage-v1.pages.dev/ ./
+          touch .nojekyll
+      - name: Commit preview
+        run: |
+          set -euo pipefail
+          git config user.name "homepage-v1-preview"
+          git config user.email "daniel.me.crowe@gmail.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No preview files to commit"
+            exit 0
+          fi
+          git commit -m "Sync TypeDB homepage v1 preview [skip ci]"
+          git push
